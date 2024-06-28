@@ -109,8 +109,8 @@ def run(args):
         # concat all the other domains to create the train set
         train_domains = ConcatDataset([d for d in domains.values() if d != test_domain])
 
-        #train_domains = Subset(train_domains, list(range(8)))
-        #test_domain = Subset(test_domain, list(range(4)))
+        train_domains = Subset(train_domains, list(range(8)))
+        test_domain = Subset(test_domain, list(range(4)))
         
         train_loader = DataLoader(train_domains, collate_fn=collator, batch_size=args.batch_size)
         test_loader = DataLoader(test_domain, collate_fn=collator, batch_size=args.batch_size)
@@ -150,7 +150,7 @@ def run(args):
             with torch.no_grad():
                 y_pred = model(X).logits
 
-            correct_preds += torch.sum(torch.argmax(y_pred, dim=1) == y).item()
+            correct_preds += torch.sum(torch.argmax(y_pred, dim=1).cpu() == y.cpu()).item()
 
         acc = correct_preds / len(test_loader.dataset)
         total_acc += acc
