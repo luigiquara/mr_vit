@@ -9,6 +9,8 @@ from torchvision.datasets import ImageFolder
 from transformers import ViTImageProcessor, ViTForImageClassification
 from peft import LoraConfig, get_peft_model
 
+from dataset import load_multidomain_dataset
+
 class ImageCollator:
     def __init__(self, processor):
         self.processor = processor
@@ -17,45 +19,6 @@ class ImageCollator:
         inputs = self.processor([img for img, label in batch], return_tensors='pt')
         inputs['label'] = [label for _, label in batch]
         return inputs['pixel_values'], torch.LongTensor(inputs['label'])
-
-def load_multidomain_dataset(ds_root, ds_name):
-    '''Load datasets with multiple domains, for OOD generalization.
-    The supported datasets are the ones from ModelRatatouille: PACS, VLCS, OfficeHome, TerraInc, DomainNet
-    
-    Parameters
-    ---------
-    ds_root: str
-        The path to the directory containing all the datasets
-    ds_name: str
-        The name of the desired dataset. Must be in [PACS, VLCS, OfficeHome, TerraInc, DomainNet]
-
-    Return
-    ------
-    n_classes: int
-        Number of classes of the specified dataset
-    domains: {ds_name: str, ds: ImageFolder}
-        Dictionary containing all the domains of the specified dataset
-    '''
-
-    ds_path = ds_root + ds_name
-
-    if ds_name == 'PACS':
-        domain_names = ['photo', 'art_painting', 'cartoon', 'sketch']
-        n_classes = 7
-
-    elif ds_name == 'VLCS':
-        raise NotImplementedError
-    elif ds_name == 'OfficeHome':
-        raise NotImplementedError
-    elif ds_name == 'DomainNet':
-        raise NotImplementedError
-
-    else: raise Exception('dataset not found')
-
-    domains = {}
-    # load all the domains
-    for d in domain_names: domains[d] = ImageFolder(ds_path + f'/{d}')
-    return domains, n_classes
 
 def forward_pass(model, loader, device):
     '''Perform a forward pass on the model. Return the output features
@@ -117,16 +80,15 @@ def run(args):
         test_loader = DataLoader(test_domain, collate_fn=collator, batch_size=args.batch_size)
 
         # define LoRA model
-        config = LoraConfig(r=8, lora_alpha=8, lora_dropout=0.1, modules_to_save=['classifier'])
+        config = LoraConfig(r=16, lora_alpha=16, lora_dropout=0.1, target_modules=['query', 'value'], modules_to_save=['classifier'])
         lora_model = get_peft_model(model, config)
-        lora_model.print_trainable_params()
-        breakpoint()
+        lora_model.print_trainable_parameters()
 
         # finetune on train set
-        opt = SGD(model.parameters(), lr=args.lr)
+        opt = SGD(lora_model.parameters(), lr=args.lr)
         loss_fn = nn.CrossEntropyLoss()
-        model.to(args.device)
-        model.train()
+        lora_model.to(args.device)
+        lora_model.train()
         
         for e in range(args.epochs):
             correct_preds = 0
@@ -135,7 +97,7 @@ def run(args):
                 y = y.to(args.device)
 
                 opt.zero_grad()
-                y_pred = model(X).logits
+                y_pred = lora_model(X).logits
                 loss = loss_fn(y_pred, y)
                 loss.backward()
                 opt.step()
@@ -147,15 +109,15 @@ def run(args):
 
         
         # evaluation on test domain
-        model.to(args.device)
-        model.eval()
+        lora_model.to(args.device)
+        lora_model.eval()
         correct_preds = 0
 
         for X, y in tqdm(test_loader):
             X = X.to(args.device)
 
             with torch.no_grad():
-                y_pred = model(X).logits
+                y_pred = lora_model(X).logits
 
             correct_preds += torch.sum(torch.argmax(y_pred, dim=1).cpu() == y.cpu()).item()
 

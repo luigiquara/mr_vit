@@ -8,6 +8,8 @@ from torch.utils.data import ConcatDataset, DataLoader, Subset
 from torchvision.datasets import ImageFolder
 from transformers import ViTImageProcessor, ViTForImageClassification
 
+from dataset import load_multidomain_dataset
+
 class ImageCollator:
     def __init__(self, processor):
         self.processor = processor
@@ -16,45 +18,6 @@ class ImageCollator:
         inputs = self.processor([img for img, label in batch], return_tensors='pt')
         inputs['label'] = [label for _, label in batch]
         return inputs['pixel_values'], torch.LongTensor(inputs['label'])
-
-def load_multidomain_dataset(ds_root, ds_name):
-    '''Load datasets with multiple domains, for OOD generalization.
-    The supported datasets are the ones from ModelRatatouille: PACS, VLCS, OfficeHome, TerraInc, DomainNet
-    
-    Parameters
-    ---------
-    ds_root: str
-        The path to the directory containing all the datasets
-    ds_name: str
-        The name of the desired dataset. Must be in [PACS, VLCS, OfficeHome, TerraInc, DomainNet]
-
-    Return
-    ------
-    n_classes: int
-        Number of classes of the specified dataset
-    domains: {ds_name: str, ds: ImageFolder}
-        Dictionary containing all the domains of the specified dataset
-    '''
-
-    ds_path = ds_root + ds_name
-
-    if ds_name == 'PACS':
-        domain_names = ['photo', 'art_painting', 'cartoon', 'sketch']
-        n_classes = 7
-
-    elif ds_name == 'VLCS':
-        raise NotImplementedError
-    elif ds_name == 'OfficeHome':
-        raise NotImplementedError
-    elif ds_name == 'DomainNet':
-        raise NotImplementedError
-
-    else: raise Exception('dataset not found')
-
-    domains = {}
-    # load all the domains
-    for d in domain_names: domains[d] = ImageFolder(ds_path + f'/{d}')
-    return domains, n_classes
 
 def forward_pass(model, loader, device):
     '''Perform a forward pass on the model. Return the output features
@@ -109,7 +72,7 @@ def run(args):
         # concat all the other domains to create the train set
         train_domains = ConcatDataset([d for d in domains.values() if d != test_domain])
 
-        #train_domains = Subset(train_domains, list(range(8)))
+        #train_domains = Subset(train_domains, list(range(405)))
         #test_domain = Subset(test_domain, list(range(4)))
         
         train_loader = DataLoader(train_domains, collate_fn=collator, batch_size=args.batch_size)
