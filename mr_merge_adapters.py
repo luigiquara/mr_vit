@@ -183,10 +183,6 @@ def run(args):
     avg_acc = total_acc / len(target_ds.domains)
     print(f'Average test accuracy: {avg_acc}')
 
-            
-
-
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ds_root', type=str, default='/leonardo_scratch/fast/IscrC_FoundCL/projects/cl-collab/ModelRatatouille/lquarant/domainbed/data/')
