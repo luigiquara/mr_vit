@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from PIL import ImageFile
+import torch
 from torchvision.datasets import ImageFolder
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
